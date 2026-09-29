@@ -4,6 +4,8 @@ using UnityEngine;
 public class NoteLibrary
 {
     public static GameObject notePrefab = Resources.Load<GameObject>("Prefabs/Note");
+
+    /*
     public static string getNote(Note note)
     {
         if(!note.pause && !note.point)
@@ -49,6 +51,7 @@ public class NoteLibrary
         }
         return "KA";
     }
+    */
     public static string getNumber(int number)
     {
         switch (number)
@@ -67,5 +70,6 @@ public class NoteLibrary
             return "-1";
         }
     }
+    
 
 }

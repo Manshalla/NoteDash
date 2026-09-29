@@ -9,7 +9,7 @@ public class TextUpdater : MonoBehaviour
     {
         if(StateManager.gameFinished == false)
         {
-            counter.text = Mathf.Floor(Clock2.count).ToString();
+            counter.text = Mathf.Floor(Clock.count).ToString();
         }
         else
         {

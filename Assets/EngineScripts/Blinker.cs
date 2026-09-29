@@ -22,12 +22,12 @@ public class Blinker : MonoBehaviour
     }
     void Update()
     {
-        if(StateManager.playing && prevCount< (int)Mathf.Floor(Clock2.globalCount))
+        if(StateManager.playing && prevCount< (int)Mathf.Floor(Clock.globalCount))
         {
-            prevCount = (int)Mathf.Floor(Clock2.globalCount);
+            prevCount = (int)Mathf.Floor(Clock.globalCount);
             blinkVoid();
         }
-        float b = Mathf.Cos(Clock2.count*2*Mathf.PI);
+        float b = Mathf.Cos(Clock.count*2*Mathf.PI);
 
         if (b < 0)
         {

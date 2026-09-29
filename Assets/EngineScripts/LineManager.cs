@@ -5,9 +5,10 @@ using Unity.VisualScripting;
 
 public class LineManager : MonoBehaviour
 {
-    public LineData data;
     public TMP_Text numC,domC;
     private TimeSignature curSignature;
+
+    public int beatsThisLine = 4;
 
     public TimeSignature timeSignature
     {
