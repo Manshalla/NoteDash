@@ -1,7 +1,7 @@
 using System.Globalization;
 using UnityEngine;
 
-public class Clock2 : MonoBehaviour
+public class Clock : MonoBehaviour
 {
     public static float count,globalCount;
     private float startCount,firstStart;
@@ -10,7 +10,7 @@ public class Clock2 : MonoBehaviour
     public float pubCount;
     public float testGlobal,testLine;
     public float prevCount =1;
-    private static bool counting;
+    private static bool counting = true;
 
    
     public void Update()
@@ -55,4 +55,9 @@ public class Clock2 : MonoBehaviour
         counting = !counting;
         
     }
+    public static bool getState()
+    {
+        return counting;
+    }
+
 }

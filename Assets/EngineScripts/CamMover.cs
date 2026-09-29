@@ -4,22 +4,25 @@ using UnityEngine.InputSystem;
 
 public class CamMover : MonoBehaviour
 {
-    public Camera cam;
-    public Entity entity;
+    Entity entity;
+    int lineStartCount = 0;
 
-public static Vector3 topRight,bottomLeft;
-public void Start()
+    public int index = 0;
+    public void Start()
     {
         entity = this.GetComponent<Entity>();
     }
     public void Update()
     {
-        float height = 2f * cam.orthographicSize;
-        float width = height * cam.aspect;
-
-        Vector3 tPositionWithoutZ = new Vector3(this.transform.position.x,this.transform.position.y,0);
-        bottomLeft = tPositionWithoutZ + new Vector3(-width / 2, -height / 2, 0);
-        topRight   = tPositionWithoutZ + new Vector3( width / 2,  height / 2, 0);
-    
+        /*
+        if(LineManager.gespLines.Count > index && lineStartCount + LineManager.gespLines[index].GetComponent<Measure>().beatsThisLine - 1 
+                    < Clock.globalCount)
+        {
+            //lineStartCount += LineManager.gespLines[index].GetComponent<Measure>().beatsThisLine;
+            index++;
+            Vector3 linePos = LineManager.gespLines[index].position;
+            entity.Animate(new Vector3(linePos.x,linePos.y,this.transform.position.z),1);
+        }
+        */
     }
 }
