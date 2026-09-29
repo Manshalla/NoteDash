@@ -4,23 +4,28 @@ using UnityEngine;
 public class LineManager : MonoBehaviour
 {
     public GameObject MeasurePrefab;
-    public Transform linesParent;
+    public Transform curPage;
 
     public Transform Cam;
 
     Vector3 lineSpawnPos;
+    Vector3 pageSpawnPos = new Vector3();
 
     public static List<Transform> gespLines = new List<Transform>();
 
     public int measuresPerLine = 3;
+    public int linesPerPage = 5;
 
     static float ySpacing = 2;
+
+    float pageYSpacing = 30;
     float delta = 10;
 
 
     int lineIndex  = 0;
+    int pageIndex = 0;
 
-    private GameObject PagePrefab;
+    public GameObject PagePrefab;
 
     MusicGenerator generator;
 
@@ -33,15 +38,25 @@ public class LineManager : MonoBehaviour
 
     public void Update()
     {
-
-        if(Cam.position.y - lineSpawnPos.y < delta)
+        if(curPage == null || Cam.position.y - curPage.position.y < delta)
         {
-            //gespLines.Add(Instantiate(linePrefab,spawnPos,Quaternion.identity,lineParent).transform);
-            GenerateLine();
+            
+            curPage = Instantiate(PagePrefab,pageSpawnPos,Quaternion.identity,this.transform).transform;
+            pageSpawnPos -= Vector3.up*pageYSpacing;
 
-            lineSpawnPos -= ySpacing*Vector3.up;
-            lineIndex++;
+
+            for (int i = 0; i < linesPerPage; i++)
+            {
+                //gespLines.Add(Instantiate(linePrefab,spawnPos,Quaternion.identity,lineParent).transform);
+
+                lineSpawnPos = curPage.position + new Vector3(-5,6 - (12/linesPerPage) * i,3);
+                GenerateLine();
+
+                
+                lineIndex++;
+            }
         }
+
 
     }
 
@@ -64,7 +79,8 @@ public class LineManager : MonoBehaviour
     private void GenerateLine()
     {
         GameObject line = new GameObject("Line " + lineIndex.ToString());
-        if (linesParent != null) line.transform.SetParent(linesParent, true);
+        if (curPage != null) line.transform.SetParent(curPage, true);
+        
         gespLines.Add(line.transform);
 
         for(int i = 0; i< measuresPerLine; i++)
