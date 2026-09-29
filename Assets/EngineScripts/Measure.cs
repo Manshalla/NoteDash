@@ -11,7 +11,7 @@ public class Measure : MonoBehaviour
     public GameObject leftLine,RightLine;
 
 
-    
+
 
     public TimeSignature timeSignature
     {
@@ -19,11 +19,11 @@ public class Measure : MonoBehaviour
         set
         {
             curSignature = value;
-            domC.text = NoteLibrary.getNumber(curSignature.denominator);
-            numC.text = NoteLibrary.getNumber(curSignature.numerator);
+            domC.text = NoteLibrary.getNumberString(curSignature.denominator);
+            numC.text = NoteLibrary.getNumberString(curSignature.numerator);
         }
     }
 }
 
 
-    
+

@@ -1,4 +1,3 @@
-using UnityEditor;
 using UnityEngine;
 
 public class NoteLibrary
@@ -69,6 +68,15 @@ public class NoteLibrary
         default:
             return "-1";
         }
+    }
+
+    /// <summary>Multi-digit time-signature number (e.g. 12 for 12/8).</summary>
+    public static string getNumberString(int number)
+    {
+        string result = "";
+        foreach (char c in number.ToString())
+            result += getNumber(c - '0');
+        return result;
     }
     
 

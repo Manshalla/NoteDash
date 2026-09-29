@@ -17,12 +17,23 @@ public class LineManager : MonoBehaviour
     static float ySpacing = 2;
     float delta = 10;
 
+
     int lineIndex  = 0;
 
+    private GameObject PagePrefab;
+
+    MusicGenerator generator;
+
+    public void Awake()
+    {
+        PracticeSettings.Load();
+        PracticeSettings.ApplyToClock();
+        generator = new MusicGenerator();
+    }
 
     public void Update()
     {
-        
+
         if(Cam.position.y - lineSpawnPos.y < delta)
         {
             //gespLines.Add(Instantiate(linePrefab,spawnPos,Quaternion.identity,lineParent).transform);
@@ -34,9 +45,27 @@ public class LineManager : MonoBehaviour
 
     }
 
+    /// <summary>
+    /// Throws away all lines and starts over with the current PracticeSettings
+    /// (called from the pause menu). New lines are spawned again by Update().
+    /// </summary>
+    public void Regenerate()
+    {
+        foreach (Transform line in gespLines)
+            if (line != null) Destroy(line.gameObject);
+        gespLines.Clear();
+
+        lineSpawnPos = Vector3.zero;
+        lineIndex = 0;
+        PracticeSettings.ApplyToClock();
+        generator = new MusicGenerator();
+    }
+
     private void GenerateLine()
     {
         GameObject line = new GameObject("Line " + lineIndex.ToString());
+        if (linesParent != null) line.transform.SetParent(linesParent, true);
+        gespLines.Add(line.transform);
 
         for(int i = 0; i< measuresPerLine; i++)
         {
@@ -54,21 +83,23 @@ public class LineManager : MonoBehaviour
                 measure.RightLine.SetActive(false);
             }
 
-
-            if(i==0 && lineIndex == 0)
+            bool showTimeSig = i == 0 && lineIndex == 0;
+            if(showTimeSig)
             {
-
-
+                measure.timeSignature = new TimeSignature(PracticeSettings.TimeNum, PracticeSettings.TimeDen);
             }
             else
             {
                 measure.numC.text = "";
                 measure.domC.text = "";
             }
+
+            // fill the measure with generated notes (clef + key signature at the start of every line)
+            MeasureRenderer.Render(measure, generator.NextMeasure(), i == 0, showTimeSig);
         }
 
         line.transform.position = lineSpawnPos;
- 
+
     }
 
 }
