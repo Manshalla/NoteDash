@@ -14,11 +14,10 @@ public class LineManager : MonoBehaviour
     public static List<Transform> gespLines = new List<Transform>();
 
     public int measuresPerLine = 3;
-    public int linesPerPage = 5;
+    public int linesPerPage = 7;
 
-    static float ySpacing = 2;
-
-    float pageYSpacing = 30;
+    public float lineYSpacing;
+    float pageYSpacing = 25;
     float delta = 10;
 
 
@@ -28,6 +27,9 @@ public class LineManager : MonoBehaviour
     public GameObject PagePrefab;
 
     MusicGenerator generator;
+
+    // every measure that has been spawned, in reading order (needed to refill them on Regenerate)
+    readonly List<(Measure measure, bool lineStart)> spawnedMeasures = new List<(Measure, bool)>();
 
     public void Awake()
     {
@@ -49,7 +51,7 @@ public class LineManager : MonoBehaviour
             {
                 //gespLines.Add(Instantiate(linePrefab,spawnPos,Quaternion.identity,lineParent).transform);
 
-                lineSpawnPos = curPage.position + new Vector3(-5,6 - (12/linesPerPage) * i,3);
+                lineSpawnPos = curPage.position + new Vector3(-5,9 - lineYSpacing * i,3);
                 GenerateLine();
 
                 
@@ -61,19 +63,25 @@ public class LineManager : MonoBehaviour
     }
 
     /// <summary>
-    /// Throws away all lines and starts over with the current PracticeSettings
-    /// (called from the pause menu). New lines are spawned again by Update().
+    /// Refills every measure that already exists (on all pages) with new music from the current
+    /// PracticeSettings. Pages, lines and the camera stay where they are; pages spawned later
+    /// simply continue with the same generator. Called from the pause menu.
     /// </summary>
     public void Regenerate()
     {
-        foreach (Transform line in gespLines)
-            if (line != null) Destroy(line.gameObject);
-        gespLines.Clear();
-
-        lineSpawnPos = Vector3.zero;
-        lineIndex = 0;
         PracticeSettings.ApplyToClock();
         generator = new MusicGenerator();
+
+        spawnedMeasures.RemoveAll(entry => entry.measure == null);
+        for (int k = 0; k < spawnedMeasures.Count; k++)
+        {
+            Measure measure = spawnedMeasures[k].measure;
+            bool showTimeSig = k == 0;
+            if (showTimeSig)
+                measure.timeSignature = new TimeSignature(PracticeSettings.TimeNum, PracticeSettings.TimeDen);
+
+            MeasureRenderer.Render(measure, generator.NextMeasure(), spawnedMeasures[k].lineStart, showTimeSig);
+        }
     }
 
     private void GenerateLine()
@@ -112,6 +120,7 @@ public class LineManager : MonoBehaviour
 
             // fill the measure with generated notes (clef + key signature at the start of every line)
             MeasureRenderer.Render(measure, generator.NextMeasure(), i == 0, showTimeSig);
+            spawnedMeasures.Add((measure, i == 0));
         }
 
         line.transform.position = lineSpawnPos;
