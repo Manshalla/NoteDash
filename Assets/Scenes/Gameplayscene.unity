@@ -390,16 +390,14 @@ PrefabInstance:
       propertyPath: m_Name
       value: lineObject
       objectReference: {fileID: 0}
+    - target: {fileID: 7565998281382768510, guid: 5fa18671b59e1ef499c9616299c6c2de, type: 3}
+      propertyPath: m_IsActive
+      value: 0
+      objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
-    m_AddedComponents:
-    - targetCorrespondingSourceObject: {fileID: 2949967024288008164, guid: 5fa18671b59e1ef499c9616299c6c2de, type: 3}
-      insertIndex: -1
-      addedObject: {fileID: 0}
-    - targetCorrespondingSourceObject: {fileID: 2934699832092344728, guid: 5fa18671b59e1ef499c9616299c6c2de, type: 3}
-      insertIndex: -1
-      addedObject: {fileID: 0}
+    m_AddedComponents: []
   m_SourcePrefab: {fileID: 100100000, guid: 5fa18671b59e1ef499c9616299c6c2de, type: 3}
 --- !u!1 &958820784
 GameObject:
@@ -627,9 +625,10 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 52e6d3740b215284aad77b256dd3656c, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::LineSpawner
-  linePrefab: {fileID: 7565998281382768510, guid: 5fa18671b59e1ef499c9616299c6c2de, type: 3}
-  lineParent: {fileID: 1985739366}
+  MeasurePrefab: {fileID: 7565998281382768510, guid: 5fa18671b59e1ef499c9616299c6c2de, type: 3}
+  linesParent: {fileID: 1985739366}
   Cam: {fileID: 2137994746}
+  measuresPerLine: 3
 --- !u!4 &1802513516
 Transform:
   m_ObjectHideFlags: 0
@@ -767,7 +766,7 @@ Transform:
   m_GameObject: {fileID: 2137994743}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 0, z: -10}
+  m_LocalPosition: {x: 0, y: 0, z: -6}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []

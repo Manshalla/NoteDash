@@ -14,13 +14,15 @@ public class CamMover : MonoBehaviour
     }
     public void Update()
     {
-        if(LineSpawner.gespLines.Count > index && lineStartCount + LineSpawner.gespLines[index].GetComponent<LineManager>().beatsThisLine - 1 
+        /*
+        if(LineManager.gespLines.Count > index && lineStartCount + LineManager.gespLines[index].GetComponent<Measure>().beatsThisLine - 1 
                     < Clock.globalCount)
         {
-            lineStartCount += LineSpawner.gespLines[index].GetComponent<LineManager>().beatsThisLine;
+            //lineStartCount += LineManager.gespLines[index].GetComponent<Measure>().beatsThisLine;
             index++;
-            Vector3 linePos = LineSpawner.gespLines[index].position;
+            Vector3 linePos = LineManager.gespLines[index].position;
             entity.Animate(new Vector3(linePos.x,linePos.y,this.transform.position.z),1);
         }
+        */
     }
 }
