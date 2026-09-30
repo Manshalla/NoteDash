@@ -9,7 +9,9 @@ using UnityEngine.InputSystem;
 /// The camera is kept inside adjustable bounds (shown as a yellow box in the Scene view when selected).
 ///
 /// Put this on the Main Camera (next to Entity). While Entity is animating the camera
-/// (e.g. the Escape zoom-out in InputHandler) this script stays out of the way.
+/// (e.g. the Escape zoom-out in InputHandler) this script stays out of the way; afterwards
+/// the mouse works again (also while paused). If an animation ends outside the bounds,
+/// the camera is not snapped back, it just can't be moved further out.
 /// </summary>
 [RequireComponent(typeof(Camera))]
 public class CameraController : MonoBehaviour
@@ -37,8 +39,6 @@ public class CameraController : MonoBehaviour
     public bool limitZoomToBounds = true;
 
     [Header("When")]
-    [Tooltip("Also allow zooming/dragging while the game is paused (Escape menu open)")]
-    public bool allowWhilePaused = false;
     [Tooltip("Ignore the mouse while it is over UI (buttons, panels)")]
     public bool ignoreWhenOverUI = true;
 
@@ -53,12 +53,18 @@ public class CameraController : MonoBehaviour
     Vector3 dragVelocity;
     Vector2 lastMousePosition;
 
+    // "soft" limits: if an animation left the camera outside the bounds (e.g. the Escape view),
+    // it isn't snapped back - it just can't move further out, and the limits tighten as it moves in.
+    Vector2 softMin, softMax;
+    float softMaxSize;
+
     void Awake()
     {
         cam = GetComponent<Camera>();
         entity = GetComponent<Entity>();
         targetSize = cam.orthographicSize;
         targetPosition = transform.position;
+        ResetSoftLimits();
     }
 
     // LateUpdate so Entity animations (which run in Update) are already applied this frame
@@ -68,7 +74,7 @@ public class CameraController : MonoBehaviour
 
         // Entity is animating the camera (e.g. Escape menu) -> don't interfere, just follow its values
         bool entityBusy = entity != null && (entity.IsMoving || entity.IsZooming);
-        bool inputAllowed = mouse != null && !entityBusy && (allowWhilePaused || Clock.getState());
+        bool inputAllowed = mouse != null && !entityBusy;   // works while playing and while paused
 
         if (!inputAllowed)
         {
@@ -97,7 +103,8 @@ public class CameraController : MonoBehaviour
             float notches = Mathf.Abs(scroll) > 10f ? scroll / 120f : scroll;
             targetSize *= Mathf.Pow(1f - zoomStep, notches);
         }
-        targetSize = Mathf.Clamp(targetSize, minOrthographicSize, MaxSize());
+        softMaxSize = Mathf.Max(MaxSize(), Mathf.Min(softMaxSize, cam.orthographicSize));
+        targetSize = Mathf.Clamp(targetSize, minOrthographicSize, softMaxSize);
 
         float oldSize = cam.orthographicSize;
         float newSize = zoomSmoothTime <= 0f
@@ -174,19 +181,46 @@ public class CameraController : MonoBehaviour
     {
         transform.position = Clamp(transform.position);
         targetPosition = Clamp(targetPosition);
+        ClampToBoundsSoft();
+    }
+
+    void ClampToBoundsSoft()
+    {
+        RealLimits(out Vector2 lo, out Vector2 hi);
+        Vector3 p = transform.position;
+
+        // tighten the soft limits as the camera moves back inside
+        softMin.x = Mathf.Min(lo.x, Mathf.Max(softMin.x, p.x));
+        softMin.y = Mathf.Min(lo.y, Mathf.Max(softMin.y, p.y));
+        softMax.x = Mathf.Max(hi.x, Mathf.Min(softMax.x, p.x));
+        softMax.y = Mathf.Max(hi.y, Mathf.Min(softMax.y, p.y));
+    }
+
+    /// <summary>Allowed camera-centre range for the current zoom.</summary>
+    void RealLimits(out Vector2 lo, out Vector2 hi)
+    {
+        float halfH = cam.orthographicSize;
+        float halfW = halfH * cam.aspect;
+        lo = new Vector2(boundsMin.x + halfW, boundsMin.y + halfH);
+        hi = new Vector2(boundsMax.x - halfW, boundsMax.y - halfH);
+        if (lo.x > hi.x) lo.x = hi.x = (boundsMin.x + boundsMax.x) * 0.5f;
+        if (lo.y > hi.y) lo.y = hi.y = (boundsMin.y + boundsMax.y) * 0.5f;
     }
 
     Vector3 Clamp(Vector3 p)
     {
-        float halfH = cam.orthographicSize;
-        float halfW = halfH * cam.aspect;
-
-        float minX = boundsMin.x + halfW, maxX = boundsMax.x - halfW;
-        float minY = boundsMin.y + halfH, maxY = boundsMax.y - halfH;
-
-        p.x = minX > maxX ? (boundsMin.x + boundsMax.x) * 0.5f : Mathf.Clamp(p.x, minX, maxX);
-        p.y = minY > maxY ? (boundsMin.y + boundsMax.y) * 0.5f : Mathf.Clamp(p.y, minY, maxY);
+        RealLimits(out Vector2 lo, out Vector2 hi);
+        p.x = Mathf.Clamp(p.x, Mathf.Min(lo.x, softMin.x), Mathf.Max(hi.x, softMax.x));
+        p.y = Mathf.Clamp(p.y, Mathf.Min(lo.y, softMin.y), Mathf.Max(hi.y, softMax.y));
         return p;
+    }
+
+    void ResetSoftLimits()
+    {
+        if (cam == null) cam = GetComponent<Camera>();
+        Vector3 p = transform.position;
+        softMin = softMax = new Vector2(p.x, p.y);
+        softMaxSize = cam.orthographicSize;
     }
 
     /// <summary>Takes over the camera's current position/size as the new targets (after external animations).</summary>
@@ -198,6 +232,7 @@ public class CameraController : MonoBehaviour
         zoomVelocity = 0f;
         dragVelocity = Vector3.zero;
         dragging = false;
+        ResetSoftLimits();
     }
 
     void OnValidate()

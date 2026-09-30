@@ -103,11 +103,13 @@ public class PracticeMenu : MonoBehaviour
         Refresh();
     }
 
+    /// <summary>Resume button: lets InputHandler unpause and move the camera back. The panel stays visible.</summary>
     public void Resume()
     {
         PracticeSettings.Save();
-        if (!Clock.getState()) Clock.switchState();
-        gameObject.SetActive(false);
+        InputHandler handler = FindFirstObjectByType<InputHandler>();
+        if (handler != null) handler.ResumeGame();
+        else if (!Clock.getState()) Clock.switchState();
     }
 
     public void Regenerate()
