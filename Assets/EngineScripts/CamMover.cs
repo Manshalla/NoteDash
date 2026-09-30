@@ -24,5 +24,8 @@ public class CamMover : MonoBehaviour
             entity.Animate(new Vector3(linePos.x,linePos.y,this.transform.position.z),1);
         }
         */
+
+
+        
     }
 }

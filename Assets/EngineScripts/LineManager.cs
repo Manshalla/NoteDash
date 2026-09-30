@@ -24,6 +24,8 @@ public class LineManager : MonoBehaviour
     int lineIndex  = 0;
     int pageIndex = 0;
 
+    public Vector3 pagePosition;
+
     public GameObject PagePrefab;
 
     MusicGenerator generator;
@@ -37,13 +39,22 @@ public class LineManager : MonoBehaviour
         PracticeSettings.ApplyToClock();
         generator = new MusicGenerator();
     }
-
-    public void Update()
+    public void Start()
     {
-        if(curPage == null || Cam.position.y - curPage.position.y < delta)
-        {
-            
-            curPage = Instantiate(PagePrefab,pageSpawnPos,Quaternion.identity,this.transform).transform;
+        GameObject page = generatePage();
+
+        page. transform.position = pagePosition;
+    }
+
+    /// <summary>
+    /// Refills every measure that already exists (on all pages) with new music from the current
+    /// PracticeSettings. Pages, lines and the camera stay where they are; pages spawned later
+    /// simply continue with the same generator. Called from the pause menu.
+    /// </summary>
+    /// 
+    public GameObject generatePage()
+    {
+        curPage = Instantiate(PagePrefab,pageSpawnPos,Quaternion.identity,this.transform).transform;
             pageSpawnPos -= Vector3.up*pageYSpacing;
 
 
@@ -57,16 +68,8 @@ public class LineManager : MonoBehaviour
                 
                 lineIndex++;
             }
-        }
-
-
+        return curPage.gameObject;
     }
-
-    /// <summary>
-    /// Refills every measure that already exists (on all pages) with new music from the current
-    /// PracticeSettings. Pages, lines and the camera stay where they are; pages spawned later
-    /// simply continue with the same generator. Called from the pause menu.
-    /// </summary>
     public void Regenerate()
     {
         PracticeSettings.ApplyToClock();
