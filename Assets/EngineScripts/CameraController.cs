@@ -183,45 +183,52 @@ public class CameraController : MonoBehaviour
     {
         transform.position = Clamp(transform.position);
         targetPosition = Clamp(targetPosition);
-        ClampToBoundsSoft();
+        TightenSoftLimits();
     }
 
-    void ClampToBoundsSoft()
+    // The soft limits describe the VISIBLE AREA (not the camera centre). Normally they equal the bounds.
+    // Only when an animation left the view partly outside the bounds (e.g. the Escape view) are they
+    // wider - and they shrink back as soon as the view moves inside, so zooming out at an edge can
+    // never reveal anything beyond the bounds.
+    void TightenSoftLimits()
     {
-        RealLimits(out Vector2 lo, out Vector2 hi);
-        Vector3 p = transform.position;
-
-        // tighten the soft limits as the camera moves back inside
-        softMin.x = Mathf.Min(lo.x, Mathf.Max(softMin.x, p.x));
-        softMin.y = Mathf.Min(lo.y, Mathf.Max(softMin.y, p.y));
-        softMax.x = Mathf.Max(hi.x, Mathf.Min(softMax.x, p.x));
-        softMax.y = Mathf.Max(hi.y, Mathf.Min(softMax.y, p.y));
+        View(transform.position, out Vector2 viewMin, out Vector2 viewMax);
+        softMin.x = Mathf.Min(boundsMin.x, Mathf.Max(softMin.x, viewMin.x));
+        softMin.y = Mathf.Min(boundsMin.y, Mathf.Max(softMin.y, viewMin.y));
+        softMax.x = Mathf.Max(boundsMax.x, Mathf.Min(softMax.x, viewMax.x));
+        softMax.y = Mathf.Max(boundsMax.y, Mathf.Min(softMax.y, viewMax.y));
     }
 
-    /// <summary>Allowed camera-centre range for the current zoom.</summary>
-    void RealLimits(out Vector2 lo, out Vector2 hi)
+    void View(Vector3 centre, out Vector2 viewMin, out Vector2 viewMax)
     {
         float halfH = cam.orthographicSize;
         float halfW = halfH * cam.aspect;
-        lo = new Vector2(boundsMin.x + halfW, boundsMin.y + halfH);
-        hi = new Vector2(boundsMax.x - halfW, boundsMax.y - halfH);
-        if (lo.x > hi.x) lo.x = hi.x = (boundsMin.x + boundsMax.x) * 0.5f;
-        if (lo.y > hi.y) lo.y = hi.y = (boundsMin.y + boundsMax.y) * 0.5f;
+        viewMin = new Vector2(centre.x - halfW, centre.y - halfH);
+        viewMax = new Vector2(centre.x + halfW, centre.y + halfH);
     }
 
+    /// <summary>Moves the camera centre so the whole visible area stays inside the (soft) bounds.</summary>
     Vector3 Clamp(Vector3 p)
     {
-        RealLimits(out Vector2 lo, out Vector2 hi);
-        p.x = Mathf.Clamp(p.x, Mathf.Min(lo.x, softMin.x), Mathf.Max(hi.x, softMax.x));
-        p.y = Mathf.Clamp(p.y, Mathf.Min(lo.y, softMin.y), Mathf.Max(hi.y, softMax.y));
+        float halfH = cam.orthographicSize;
+        float halfW = halfH * cam.aspect;
+
+        Vector2 min = Vector2.Min(boundsMin, softMin);
+        Vector2 max = Vector2.Max(boundsMax, softMax);
+
+        float loX = min.x + halfW, hiX = max.x - halfW;
+        float loY = min.y + halfH, hiY = max.y - halfH;
+
+        // view bigger than the allowed area -> centre it
+        p.x = loX > hiX ? (min.x + max.x) * 0.5f : Mathf.Clamp(p.x, loX, hiX);
+        p.y = loY > hiY ? (min.y + max.y) * 0.5f : Mathf.Clamp(p.y, loY, hiY);
         return p;
     }
 
     void ResetSoftLimits()
     {
         if (cam == null) cam = GetComponent<Camera>();
-        Vector3 p = transform.position;
-        softMin = softMax = new Vector2(p.x, p.y);
+        View(transform.position, out softMin, out softMax);
         softMaxSize = cam.orthographicSize;
     }
 
