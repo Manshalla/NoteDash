@@ -39,8 +39,10 @@ public class CameraController : MonoBehaviour
     public bool limitZoomToBounds = true;
 
     [Header("When")]
-    [Tooltip("Ignore the mouse while it is over UI (buttons, panels)")]
+    [Tooltip("Don't start a drag when clicking on UI (buttons, panels). Zooming always works, also over UI.")]
     public bool ignoreWhenOverUI = true;
+    [Tooltip("Also block the mouse wheel while the mouse is over UI")]
+    public bool blockZoomOverUI = false;
 
     Camera cam;
     Entity entity;
@@ -85,7 +87,7 @@ public class CameraController : MonoBehaviour
         Vector2 mousePos = mouse.position.ReadValue();
         bool overUI = ignoreWhenOverUI && EventSystem.current != null && EventSystem.current.IsPointerOverGameObject();
 
-        HandleZoom(mouse, mousePos, overUI);
+        HandleZoom(mouse, mousePos, overUI && blockZoomOverUI);
         HandleDrag(mouse, mousePos, overUI);
 
         if (useBounds) ClampToBounds();

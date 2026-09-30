@@ -35,6 +35,8 @@ public class MusicGenerator
     readonly bool compound;
     readonly int[] allowed;
     readonly int tonicLetter, low, high, center;
+    readonly bool includeRests;
+    readonly int[] allValues;
 
     public MusicGenerator(int? seed = null)
     {
@@ -47,6 +49,10 @@ public class MusicGenerator
 
         int majorTonic = ((PracticeSettings.KeyFifths * 4) % 7 + 7) % 7;   // C=0 D=1 ... B=6
         tonicLetter = PracticeSettings.Minor ? (majorTonic + 5) % 7 : majorTonic;
+
+        // copy every setting here (main thread), so NextMeasure() can safely run on a worker thread
+        includeRests = PracticeSettings.IncludeRests;
+        allValues = PracticeSettings.AllValues.Select(v => (int)v).ToArray();
 
         center = MeasureRenderer.ClefMiddleStep(PracticeSettings.Clef);
         int range = PracticeSettings.LedgerLines ? 7 : 5;   // staff steps from the middle line
@@ -124,7 +130,7 @@ public class MusicGenerator
             if (candidates.Count == 0)
             {
                 // Selected values can't fill this spot musically -> use the largest value that fits.
-                int fallback = PracticeSettings.AllValues.Select(v => (int)v)
+                int fallback = allValues
                     .Where(d => p + d <= end && IsValid(p, d, L)).DefaultIfEmpty(1).Max();
                 candidates.Add(fallback);
             }
@@ -194,7 +200,7 @@ public class MusicGenerator
 
     void ApplyRests(List<Note> notes, bool phraseStart, bool cadence)
     {
-        if (!PracticeSettings.IncludeRests) return;
+        if (!includeRests) return;
         bool prevRest = false;
         for (int i = 0; i < notes.Count; i++)
         {

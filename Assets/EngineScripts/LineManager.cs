@@ -1,9 +1,12 @@
 using System.Collections;
 using System.Collections.Generic;
+using System.Diagnostics;
+using System.Threading.Tasks;
 using TMPro;
 using UnityEngine;
 using UnityEngine.Rendering;
 using UnityEngine.UI;
+using Debug = UnityEngine.Debug;
 
 public class LineManager : MonoBehaviour
 {
@@ -12,7 +15,6 @@ public class LineManager : MonoBehaviour
 
     public Transform Cam;
 
-    Vector3 lineSpawnPos;
 
     public static List<Transform> gespLines = new List<Transform>();
 
@@ -22,7 +24,6 @@ public class LineManager : MonoBehaviour
     public float lineYSpacing;
 
     int lineIndex = 0;       // line counter over all pages (for names)
-    int pageLineIndex = 0;   // line counter on the page being built
 
     public Vector3 pagePosition;
 
@@ -49,7 +50,20 @@ public class LineManager : MonoBehaviour
     [Tooltip("Stored pages are pushed this far back in Z so they draw behind the settings page")]
     public float storedPageZOffset = 1f;
 
+    [Header("Async generation")]
+    [Tooltip("Milliseconds per frame spent creating measures and notes. Lower = smoother frame rate, " +
+             "but a page fills up over more frames.")]
+    [Range(1f, 16f)] public float buildBudgetMs = 4f;
+
     MusicGenerator generator;
+
+    // one running build/refill job per page; a newer job makes the older one stop
+    readonly Dictionary<Transform, int> pageJob = new Dictionary<Transform, int>();
+    int jobCounter;
+
+    // pages that are currently fading: measures created meanwhile get the same opacity
+    class FadeState { public float k = 1f; public readonly Dictionary<Component, float> baseAlpha = new Dictionary<Component, float>(); }
+    readonly Dictionary<Transform, FadeState> fades = new Dictionary<Transform, FadeState>();
 
     // measures of every page, in reading order (used to refill the current page on Regenerate)
     readonly Dictionary<Transform, List<(Measure measure, bool lineStart)>> pageMeasures =
@@ -185,34 +199,42 @@ public class LineManager : MonoBehaviour
         while (entity.IsMoving) yield return null;
     }
 
-    /// <summary>Fades a whole page (paper, staff lines, notes) from one opacity to another over pageTurnTime.</summary>
+    /// <summary>
+    /// Fades a whole page (paper, staff lines, notes) from one opacity to another over pageTurnTime.
+    /// Measures that are still being built during the fade get the same opacity.
+    /// </summary>
     IEnumerator Fade(Transform page, float from, float to)
     {
-        var sprites = page.GetComponentsInChildren<SpriteRenderer>(true);
-        var texts = page.GetComponentsInChildren<TMP_Text>(true);
-        var spriteAlpha = new float[sprites.Length];
-        var textAlpha = new float[texts.Length];
-        for (int i = 0; i < sprites.Length; i++) spriteAlpha[i] = sprites[i].color.a;
-        for (int i = 0; i < texts.Length; i++) textAlpha[i] = texts[i].alpha;
+        var state = new FadeState { k = from };
+        fades[page] = state;
+        ApplyFade(page, state);
 
-        void Apply(float k)
-        {
-            for (int i = 0; i < sprites.Length; i++)
-            {
-                if (sprites[i] == null) continue;
-                Color col = sprites[i].color; col.a = spriteAlpha[i] * k; sprites[i].color = col;
-            }
-            for (int i = 0; i < texts.Length; i++)
-                if (texts[i] != null) texts[i].alpha = textAlpha[i] * k;
-        }
-
-        Apply(from);
         for (float t = 0; t < pageTurnTime; t += Time.deltaTime)
         {
-            Apply(Mathf.Lerp(from, to, t / pageTurnTime));
+            if (page == null) yield break;
+            state.k = Mathf.Lerp(from, to, t / pageTurnTime);
+            ApplyFade(page, state);
             yield return null;
         }
-        Apply(to);
+
+        if (page == null) yield break;
+        state.k = to;
+        ApplyFade(page, state);
+        fades.Remove(page);
+    }
+
+    static void ApplyFade(Transform root, FadeState state)
+    {
+        foreach (SpriteRenderer sr in root.GetComponentsInChildren<SpriteRenderer>(true))
+        {
+            if (!state.baseAlpha.TryGetValue(sr, out float a)) { a = sr.color.a; state.baseAlpha[sr] = a; }
+            Color col = sr.color; col.a = a * state.k; sr.color = col;
+        }
+        foreach (TMP_Text text in root.GetComponentsInChildren<TMP_Text>(true))
+        {
+            if (!state.baseAlpha.TryGetValue(text, out float a)) { a = text.alpha; state.baseAlpha[text] = a; }
+            text.alpha = a * state.k;
+        }
     }
 
     /// <summary>Writes the number into the page's counter text (child named pageCounterName).</summary>
@@ -243,6 +265,8 @@ public class LineManager : MonoBehaviour
             foreach (var entry in list)
                 if (entry.measure != null) gespLines.Remove(entry.measure.transform.parent);
         pageMeasures.Remove(page);
+        pageJob.Remove(page);
+        fades.Remove(page);
         Destroy(page.gameObject);
     }
 
@@ -255,83 +279,135 @@ public class LineManager : MonoBehaviour
 
     // ------------------------------------------------------------------ generation
 
+    /// <summary>
+    /// Creates the page right away (so it can already be animated) and fills it asynchronously:
+    /// the notes are computed on a background thread, the measures are built over several frames.
+    /// </summary>
     public Transform generatePage(Vector3 position, int pageNumber)
     {
         Transform page = Instantiate(PagePrefab, position, Quaternion.identity, this.transform).transform;
         pageMeasures[page] = new List<(Measure measure, bool lineStart)>();
         SetOrder(page, currentPageSortingOrder);
-
         SetPageNumber(page, pageNumber);
 
-        pageLineIndex = 0;
-        for (int i = 0; i < linesPerPage; i++)
-        {
-            lineSpawnPos = page.position + new Vector3(-5, 9 - lineYSpacing * i, 3);
-            GenerateLine(page);
-
-            lineIndex++;
-            pageLineIndex++;
-        }
+        StartJob(page);
         return page;
     }
 
     /// <summary>
     /// Refills the current page with new music from the current PracticeSettings
     /// (also a page that was brought back with Page left). Pages under the settings page are never touched.
-    /// Called from the pause menu.
+    /// Called from the pause menu. Runs asynchronously like generatePage.
     /// </summary>
     public void Regenerate()
     {
         PracticeSettings.ApplyToClock();
         generator = new MusicGenerator();
 
-        if (curPage == null) return;
-        if (!pageMeasures.TryGetValue(curPage, out var measures)) return;
-
-        measures.RemoveAll(entry => entry.measure == null);
-        for (int k = 0; k < measures.Count; k++)
-        {
-            Measure measure = measures[k].measure;
-            bool showTimeSig = k == 0;
-            if (showTimeSig)
-                measure.timeSignature = new TimeSignature(PracticeSettings.TimeNum, PracticeSettings.TimeDen);
-
-            MeasureRenderer.Render(measure, generator.NextMeasure(), measures[k].lineStart, showTimeSig);
-        }
+        if (curPage == null || !pageMeasures.ContainsKey(curPage)) return;
+        StartJob(curPage);
     }
 
-    private void GenerateLine(Transform page)
+    /// <summary>True while a page is still being built or refilled.</summary>
+    public bool IsBuilding(Transform page) => page != null && pageJob.ContainsKey(page);
+
+    void StartJob(Transform page)
     {
-        GameObject line = new GameObject("Line " + lineIndex.ToString());
-        line.transform.SetParent(page, true);
+        int id = ++jobCounter;
+        pageJob[page] = id;     // an older job for this page sees the new id and stops
+        StartCoroutine(FillPage(page, id));
+    }
 
-        gespLines.Add(line.transform);
+    IEnumerator FillPage(Transform page, int id)
+    {
+        bool Stale() => page == null || !pageJob.TryGetValue(page, out int current) || current != id;
 
-        for (int i = 0; i < measuresPerLine; i++)
+        // 1) compute the notes on a worker thread (pure C#, no Unity objects involved)
+        int count = linesPerPage * measuresPerLine;
+        MusicGenerator gen = generator;   // created on the main thread, it copied the settings it needs
+        Task<List<List<Note>>> task = Task.Run(() =>
         {
-            float xSize = 5f;
-            Vector3 pos = new Vector3(i * xSize, 0, 0);
-            Measure measure = Instantiate(MeasurePrefab, pos, Quaternion.identity, line.transform).GetComponent<Measure>();
+            var music = new List<List<Note>>(count);
+            lock (gen)   // the generator keeps state between measures -> one caller at a time
+                for (int k = 0; k < count; k++) music.Add(gen.NextMeasure());
+            return music;
+        });
+        while (!task.IsCompleted) yield return null;
 
-            measure.RightLine.SetActive(i == measuresPerLine - 1);
+        if (task.IsFaulted) { Debug.LogException(task.Exception); FinishJob(page, id); yield break; }
+        if (Stale()) yield break;
+        List<List<Note>> notes = task.Result;
 
-            // time signature on the first measure of every page
-            bool showTimeSig = i == 0 && pageLineIndex == 0;
-            if (showTimeSig)
+        // 2) build / refill the measures on the main thread, a few per frame
+        var watch = Stopwatch.StartNew();
+        for (int k = 0; k < count; k++)
+        {
+            if (Stale()) yield break;
+            List<(Measure measure, bool lineStart)> measures = pageMeasures[page];
+
+            // create the measure if the page doesn't have it yet (first fill, or an interrupted one)
+            if (k >= measures.Count) CreateMeasure(page, measures, k);
+
+            Measure measure = measures[k].measure;
+            if (measure != null)
             {
-                measure.timeSignature = new TimeSignature(PracticeSettings.TimeNum, PracticeSettings.TimeDen);
-            }
-            else
-            {
-                measure.numC.text = "";
-                measure.domC.text = "";
+                bool showTimeSig = k == 0;
+                if (showTimeSig)
+                    measure.timeSignature = new TimeSignature(PracticeSettings.TimeNum, PracticeSettings.TimeDen);
+
+                // fill the measure with generated notes (clef + key signature at the start of every line)
+                MeasureRenderer.Render(measure, notes[k], measures[k].lineStart, showTimeSig);
+
+                // the page is fading in/out right now -> give the new objects the same opacity
+                if (fades.TryGetValue(page, out FadeState fade)) ApplyFade(measure.transform, fade);
             }
 
-            // fill the measure with generated notes (clef + key signature at the start of every line)
-            MeasureRenderer.Render(measure, generator.NextMeasure(), i == 0, showTimeSig);
-            pageMeasures[page].Add((measure, i == 0));
+            if (watch.Elapsed.TotalMilliseconds >= buildBudgetMs)
+            {
+                yield return null;
+                watch.Restart();
+            }
+        }
+        FinishJob(page, id);
+    }
+
+    void FinishJob(Transform page, int id)
+    {
+        if (page != null && pageJob.TryGetValue(page, out int current) && current == id) pageJob.Remove(page);
+    }
+
+    void CreateMeasure(Transform page, List<(Measure measure, bool lineStart)> measures, int k)
+    {
+        int lineOnPage = k / measuresPerLine;
+        int i = k % measuresPerLine;
+
+        // find or create the line; its position is relative to where the page is right now (it may be moving)
+        Transform line;
+        if (i == 0)
+        {
+            line = new GameObject("Line " + lineIndex++).transform;
+            line.SetParent(page, true);
+            line.position = page.position + new Vector3(-5, 9 - lineYSpacing * lineOnPage, 3);
+            gespLines.Add(line);
+        }
+        else
+        {
+            line = measures[k - 1].measure.transform.parent;
         }
 
-        line.transform.position = lineSpawnPos;
+        float xSize = 5f;
+        Vector3 pos = line.position + new Vector3(i * xSize, 0, 0);
+        Measure measure = Instantiate(MeasurePrefab, pos, Quaternion.identity, line).GetComponent<Measure>();
+
+        measure.RightLine.SetActive(i == measuresPerLine - 1);
+
+        // time signature only on the first measure of every page
+        if (k != 0)
+        {
+            measure.numC.text = "";
+            measure.domC.text = "";
+        }
+
+        measures.Add((measure, i == 0));
     }
 }
