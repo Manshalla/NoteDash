@@ -50,6 +50,7 @@ public class PracticeMenu : MonoBehaviour
 
     void Awake()
     {
+        PracticeSettings.EnsureLoaded();   // show the saved settings, not the defaults
         buttons = GetComponentsInChildren<PracticeOptionButton>(true);
         foreach (var b in buttons) b.Bind(this);
     }

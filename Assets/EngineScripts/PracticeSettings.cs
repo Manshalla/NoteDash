@@ -39,7 +39,13 @@ public static class PracticeSettings
     static readonly string[] MinorNames = { "Ab", "Eb", "Bb", "F", "C", "G", "D", "A", "E", "B", "F#", "C#", "G#", "D#", "A#" };
 
     // ---- current selection ----
-    public static HashSet<NoteValue> Allowed = new HashSet<NoteValue> { NoteValue.Half, NoteValue.Quarter, NoteValue.Eighth };
+    /// <summary>Note values that are selected every time the game starts.</summary>
+    public static readonly NoteValue[] StartNoteValues = { NoteValue.Eighth, NoteValue.Quarter };
+    /// <summary>true: every game starts with StartNoteValues (other settings are still restored).
+    /// false: the note values chosen last time are restored too.</summary>
+    public static bool ResetNoteValuesOnStart = true;
+
+    public static HashSet<NoteValue> Allowed = new HashSet<NoteValue>(StartNoteValues);
     public static bool IncludeRests = true;
     public static bool LedgerLines = true;
     public static int Bpm = 80;
@@ -107,13 +113,25 @@ public static class PracticeSettings
         PlayerPrefs.Save();
     }
 
+    static bool loaded;
+
+    /// <summary>
+    /// Loads the saved settings once. Call this before reading any setting at startup:
+    /// Unity doesn't guarantee which object's Awake runs first, so every reader makes sure.
+    /// </summary>
+    public static void EnsureLoaded()
+    {
+        if (!loaded) Load();
+    }
+
     public static void Load()
     {
+        loaded = true;
         if (!PlayerPrefs.HasKey(Prefix + "values")) return;
         int mask = PlayerPrefs.GetInt(Prefix + "values");
         var set = new HashSet<NoteValue>();
         foreach (var v in AllValues) if ((mask & (1 << (int)v)) != 0) set.Add(v);
-        if (set.Count > 0) Allowed = set;
+        if (set.Count > 0 && !ResetNoteValuesOnStart) Allowed = set;
         IncludeRests = PlayerPrefs.GetInt(Prefix + "rests", 1) == 1;
         LedgerLines = PlayerPrefs.GetInt(Prefix + "ledger", 1) == 1;
         Bpm = Mathf.Clamp(PlayerPrefs.GetInt(Prefix + "bpm", Bpm), MinBpm, MaxBpm);

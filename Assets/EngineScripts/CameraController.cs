@@ -44,6 +44,9 @@ public class CameraController : MonoBehaviour
     [Tooltip("Also block the mouse wheel while the mouse is over UI")]
     public bool blockZoomOverUI = false;
 
+    /// <summary>Fired whenever the player actually zooms or drags the camera (e.g. to hide hints).</summary>
+    public static event System.Action UserMovedCamera;
+
     Camera cam;
     Entity entity;
 
@@ -104,6 +107,7 @@ public class CameraController : MonoBehaviour
             // Some platforms report 120 per notch, others 1 per notch
             float notches = Mathf.Abs(scroll) > 10f ? scroll / 120f : scroll;
             targetSize *= Mathf.Pow(1f - zoomStep, notches);
+            UserMovedCamera?.Invoke();
         }
         softMaxSize = Mathf.Max(MaxSize(), Mathf.Min(softMaxSize, cam.orthographicSize));
         targetSize = Mathf.Clamp(targetSize, minOrthographicSize, softMaxSize);
@@ -165,6 +169,7 @@ public class CameraController : MonoBehaviour
             Vector3 delta = from - to;
             delta.z = 0f;
             targetPosition += delta;
+            if (delta.sqrMagnitude > 0.000001f) UserMovedCamera?.Invoke();
         }
 
         if (dragSmoothTime <= 0f)

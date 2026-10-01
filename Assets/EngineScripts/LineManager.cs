@@ -83,7 +83,7 @@ public class LineManager : MonoBehaviour
 
     public void Awake()
     {
-        PracticeSettings.Load();
+        PracticeSettings.EnsureLoaded();
         PracticeSettings.ApplyToClock();
         generator = new MusicGenerator();
     }

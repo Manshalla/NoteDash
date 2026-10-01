@@ -34,11 +34,13 @@ public class InputHandler : MonoBehaviour
 
     public void Update()
     {
+        /*
         if (Keyboard.current.escapeKey.wasPressedThisFrame)
         {
             if (Clock.getState()) PauseGame();
             else ResumeGame();
         }
+        */
     }
 
     bool CameraBusy => camEntity != null && (camEntity.IsMoving || camEntity.IsZooming);
