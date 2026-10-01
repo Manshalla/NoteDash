@@ -1,6 +1,5 @@
 using UnityEngine;
 using TMPro;
-using UnityEditor.Rendering;
 using System.Collections.Generic;
 
 public class NoteSpawner : MonoBehaviour

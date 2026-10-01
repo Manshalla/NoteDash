@@ -105,7 +105,11 @@ public class CameraController : MonoBehaviour
         if (!overUI && Mathf.Abs(scroll) > 0.01f)
         {
             // Some platforms report 120 per notch, others 1 per notch
-            float notches = Mathf.Abs(scroll) > 10f ? scroll / 120f : scroll;
+            // Platforms and browsers report very different amounts per notch
+            // (Windows ~120, Chrome ~100, Firefox ~3, Mac/touchpads small smooth values).
+            // So at most one notch per frame counts; small touchpad values still zoom smoothly.
+            float amount = Mathf.Abs(scroll) > 10f ? Mathf.Abs(scroll) / 120f : Mathf.Abs(scroll);
+            float notches = Mathf.Sign(scroll) * Mathf.Min(amount, 1f);
             targetSize *= Mathf.Pow(1f - zoomStep, notches);
             UserMovedCamera?.Invoke();
         }

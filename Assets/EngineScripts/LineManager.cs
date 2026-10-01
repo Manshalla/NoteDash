@@ -434,9 +434,18 @@ public class LineManager : MonoBehaviour
     {
         bool Stale() => page == null || !pageJob.TryGetValue(page, out int current) || current != id;
 
-        // 1) compute the notes on a worker thread (pure C#, no Unity objects involved)
+        // 1) compute the notes (pure C#, no Unity objects involved)
         int count = linesPerPage * measuresPerLine;
         MusicGenerator gen = generator;   // created on the main thread, it copied the settings it needs
+        List<List<Note>> notes;
+#if UNITY_WEBGL && !UNITY_EDITOR
+        // WebGL has no worker threads: compute right here on the main thread (takes well under a millisecond)
+        notes = new List<List<Note>>(count);
+        lock (gen)
+            for (int k = 0; k < count; k++) notes.Add(gen.NextMeasure());
+        if (Stale()) yield break;
+#else
+        // everywhere else: on a worker thread
         Task<List<List<Note>>> task = Task.Run(() =>
         {
             var music = new List<List<Note>>(count);
@@ -448,7 +457,8 @@ public class LineManager : MonoBehaviour
 
         if (task.IsFaulted) { Debug.LogException(task.Exception); FinishJob(page, id); yield break; }
         if (Stale()) yield break;
-        List<List<Note>> notes = task.Result;
+        notes = task.Result;
+#endif
 
         // 2) build / refill the measures on the main thread, within the per-frame budget
         var watch = new Stopwatch();
